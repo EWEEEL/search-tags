@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      clickhouse:
+        image: clickhouse/clickhouse-server:26.8.36
+        env:
+          CLICKHOUSE_USER: app
+          CLICKHOUSE_PASSWORD: clickhouse
+          CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
+        ports:
+          - 9000:9000
+        options: >-
+          --health-cmd "clickhouse-client --user app --password clickhouse --query 'SELECT 1'"
+          --health-interval 3s
+          --health-timeout 5s
+          --health-retries 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Форматирование
+        run: test -z "$(gofmt -l .)"
+      - name: go vet
+        run: go vet ./... && go vet -tags=integration ./...
+      - name: Unit-тесты
+        run: go test -v ./...
+      - name: Интеграционные тесты с ClickHouse
+        run: go test -v -tags=integration ./tests/integration/
+        env:
+          CLICKHOUSE_ADDR: localhost:9000
+          CLICKHOUSE_USER: app
+          CLICKHOUSE_PASSWORD: clickhouse

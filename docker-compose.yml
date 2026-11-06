@@ -18,8 +18,11 @@ services:
       nofile:
         soft: 262144
         hard: 262144
+    restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "clickhouse-client --user app --password \"$$CLICKHOUSE_PASSWORD\" --query 'SELECT 1'"]
+      # Сетевой адрес обязателен: при первом запуске образ создаёт базу на временном сервере,
+      # который слушает только localhost. Проверка через localhost прошла бы слишком рано.
+      test: ["CMD-SHELL", "clickhouse-client --host \"$$(hostname -i)\" --user app --password \"$$CLICKHOUSE_PASSWORD\" --query 'SELECT 1'"]
       interval: 3s
       timeout: 5s
       retries: 40

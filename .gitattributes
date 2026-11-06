@@ -1,0 +1,4 @@
+# Скрипты запускаются внутри Linux-контейнеров, поэтому CRLF в них сломает запуск на Windows.
+* text=auto eol=lf
+*.parquet binary
+*.png binary

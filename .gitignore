@@ -1,0 +1,17 @@
+# Датасет не хранится в репозитории: куда его положить, написано в README
+data/*.parquet
+
+# Локальные настройки
+.env
+
+# Сборка
+/server
+/server.exe
+*.test
+*.out
+
+# Редакторы и ОС
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

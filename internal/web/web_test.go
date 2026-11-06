@@ -93,17 +93,17 @@ func TestAPIReturnsTagsInStoreOrder(t *testing.T) {
 		t.Errorf("Content-Type = %q", got)
 	}
 
-	var response tagsResponse
-	if err := json.Unmarshal([]byte(body), &response); err != nil {
-		t.Fatalf("invalid JSON %s: %v", body, err)
+	var tags []search.Tag
+	if err := json.Unmarshal([]byte(body), &tags); err != nil {
+		t.Fatalf("ответ не является JSON-списком %s: %v", body, err)
 	}
 	want := []search.Tag{{Tag: "красное платье", Users: 100}, {Tag: "вечернее платье", Users: 50}}
-	if len(response.Tags) != len(want) {
-		t.Fatalf("tags = %v, want %v", response.Tags, want)
+	if len(tags) != len(want) {
+		t.Fatalf("tags = %v, want %v", tags, want)
 	}
 	for i := range want {
-		if response.Tags[i] != want[i] {
-			t.Errorf("tags[%d] = %v, want %v", i, response.Tags[i], want[i])
+		if tags[i] != want[i] {
+			t.Errorf("tags[%d] = %v, want %v", i, tags[i], want[i])
 		}
 	}
 }
@@ -132,7 +132,7 @@ func TestAPINoTagsReturnsEmptyList(t *testing.T) {
 	if status != http.StatusOK {
 		t.Fatalf("status = %d, want 200", status)
 	}
-	if !strings.Contains(body, `"tags":[]`) {
+	if strings.TrimSpace(body) != "[]" {
 		t.Errorf("body = %s, want an empty list, not null", body)
 	}
 }

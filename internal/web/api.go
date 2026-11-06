@@ -7,11 +7,6 @@ import (
 	"github.com/EWEEEL/search-tags/internal/search"
 )
 
-type tagsResponse struct {
-	Query string       `json:"query"`
-	Tags  []search.Tag `json:"tags"`
-}
-
 type errorResponse struct {
 	Error string `json:"error"`
 }
@@ -36,7 +31,7 @@ func (s *Server) handleAPITags(w http.ResponseWriter, r *http.Request) {
 		tags = []search.Tag{} // в JSON должен быть [], а не null
 	}
 
-	s.writeJSON(w, http.StatusOK, tagsResponse{Query: query, Tags: tags})
+	s.writeJSON(w, http.StatusOK, tags)
 }
 
 func (s *Server) writeJSON(w http.ResponseWriter, status int, body any) {

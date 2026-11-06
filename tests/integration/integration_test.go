@@ -443,15 +443,13 @@ func TestStoreAndAPI(t *testing.T) {
 		if a != b {
 			t.Errorf("%s != %s", a, b)
 		}
-		var response struct {
-			Tags []search.Tag `json:"tags"`
-		}
-		if err := json.Unmarshal([]byte(a), &response); err != nil {
+		var tags []search.Tag
+		if err := json.Unmarshal([]byte(a), &tags); err != nil {
 			t.Fatal(err)
 		}
 		want := []search.Tag{{Tag: "красное платье", Users: 5}}
-		if !reflect.DeepEqual(response.Tags, want) {
-			t.Errorf("tags = %+v, want %+v", response.Tags, want)
+		if !reflect.DeepEqual(tags, want) {
+			t.Errorf("tags = %+v, want %+v", tags, want)
 		}
 	})
 
@@ -467,7 +465,7 @@ func TestStoreAndAPI(t *testing.T) {
 
 	t.Run("без тегов пустой список и 200", func(t *testing.T) {
 		status, body := fetch(t, "такого запроса нет")
-		if status != http.StatusOK || !strings.Contains(body, `"tags":[]`) {
+		if status != http.StatusOK || strings.TrimSpace(body) != "[]" {
 			t.Errorf("status %d, body %s", status, body)
 		}
 	})
@@ -491,7 +489,7 @@ func TestStoreAndAPI(t *testing.T) {
 			"строка\x00с нулём",
 		} {
 			status, body := fetch(t, q)
-			if status != http.StatusOK || !strings.Contains(body, `"tags":[]`) {
+			if status != http.StatusOK || strings.TrimSpace(body) != "[]" {
 				t.Errorf("q=%q: status %d, body %s", q, status, body)
 			}
 		}

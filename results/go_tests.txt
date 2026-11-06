@@ -5,17 +5,17 @@ $ go test -count=1 -v ./...
 === RUN   TestLoadFromEnvironment
 --- PASS: TestLoadFromEnvironment (0.00s)
 === RUN   TestLoadRejectsInvalidValues
+=== RUN   TestLoadRejectsInvalidValues/порт_вне_диапазона
 === RUN   TestLoadRejectsInvalidValues/нулевой_порт
 === RUN   TestLoadRejectsInvalidValues/таймаут_не_время
 === RUN   TestLoadRejectsInvalidValues/нулевой_таймаут
 === RUN   TestLoadRejectsInvalidValues/порт_не_число
-=== RUN   TestLoadRejectsInvalidValues/порт_вне_диапазона
 --- PASS: TestLoadRejectsInvalidValues (0.00s)
+    --- PASS: TestLoadRejectsInvalidValues/порт_вне_диапазона (0.00s)
     --- PASS: TestLoadRejectsInvalidValues/нулевой_порт (0.00s)
     --- PASS: TestLoadRejectsInvalidValues/таймаут_не_время (0.00s)
     --- PASS: TestLoadRejectsInvalidValues/нулевой_таймаут (0.00s)
     --- PASS: TestLoadRejectsInvalidValues/порт_не_число (0.00s)
-    --- PASS: TestLoadRejectsInvalidValues/порт_вне_диапазона (0.00s)
 PASS
 ok  	github.com/EWEEEL/search-tags/internal/config	0.010s
 === RUN   TestNormalize
@@ -53,7 +53,7 @@ ok  	github.com/EWEEEL/search-tags/internal/config	0.010s
 === RUN   TestNormalizeIsIdempotent
 --- PASS: TestNormalizeIsIdempotent (0.00s)
 PASS
-ok  	github.com/EWEEEL/search-tags/internal/search	0.011s
+ok  	github.com/EWEEEL/search-tags/internal/search	0.010s
 === RUN   TestEscapeParameter
 --- PASS: TestEscapeParameter (0.00s)
 PASS
@@ -84,6 +84,12 @@ ok  	github.com/EWEEEL/search-tags/internal/storage	0.012s
 --- PASS: TestAPIStoreErrorDoesNotLeakDetails (0.00s)
 === RUN   TestAPITimeoutReturns504
 --- PASS: TestAPITimeoutReturns504 (0.02s)
+=== RUN   TestClientDisconnectIsNotServerError
+=== RUN   TestClientDisconnectIsNotServerError//api/tags?q=%D0%BF%D0%BB%D0%B0%D1%82%D1%8C%D0%B5
+=== RUN   TestClientDisconnectIsNotServerError//?q=%D0%BF%D0%BB%D0%B0%D1%82%D1%8C%D0%B5
+--- PASS: TestClientDisconnectIsNotServerError (0.00s)
+    --- PASS: TestClientDisconnectIsNotServerError//api/tags?q=%D0%BF%D0%BB%D0%B0%D1%82%D1%8C%D0%B5 (0.00s)
+    --- PASS: TestClientDisconnectIsNotServerError//?q=%D0%BF%D0%BB%D0%B0%D1%82%D1%8C%D0%B5 (0.00s)
 === RUN   TestAPIRejectsOtherMethods
 --- PASS: TestAPIRejectsOtherMethods (0.00s)
 === RUN   TestPageWithoutQueryShowsOnlyForm
@@ -101,7 +107,7 @@ ok  	github.com/EWEEEL/search-tags/internal/storage	0.012s
 === RUN   TestUnknownPathReturns404
 --- PASS: TestUnknownPathReturns404 (0.00s)
 PASS
-ok  	github.com/EWEEEL/search-tags/internal/web	0.052s
+ok  	github.com/EWEEEL/search-tags/internal/web	0.054s
 
 $ go test -count=1 -v -tags=integration ./tests/integration/
 === RUN   TestBuildRules
@@ -112,6 +118,7 @@ $ go test -count=1 -v -tags=integration ./tests/integration/
 === RUN   TestBuildRules/считаются_пользователи,_а_не_события
 === RUN   TestBuildRules/написания_сливаются
 === RUN   TestBuildRules/топ-10_со_стабильным_порядком_при_равенстве
+=== RUN   TestBuildRules/больше_255_кандидатов_не_ломают_топ-10
 === RUN   TestBuildRules/порядок_по_времени,_а_не_по_вставке
 === RUN   TestBuildRules/разные_пользователи_пару_не_образуют
 === RUN   TestBuildRules/запрос_из_пробелов_пропускается
@@ -125,6 +132,7 @@ $ go test -count=1 -v -tags=integration ./tests/integration/
     --- PASS: TestBuildRules/считаются_пользователи,_а_не_события (0.00s)
     --- PASS: TestBuildRules/написания_сливаются (0.00s)
     --- PASS: TestBuildRules/топ-10_со_стабильным_порядком_при_равенстве (0.00s)
+    --- PASS: TestBuildRules/больше_255_кандидатов_не_ломают_топ-10 (0.00s)
     --- PASS: TestBuildRules/порядок_по_времени,_а_не_по_вставке (0.00s)
     --- PASS: TestBuildRules/разные_пользователи_пару_не_образуют (0.00s)
     --- PASS: TestBuildRules/запрос_из_пробелов_пропускается (0.00s)
@@ -143,15 +151,15 @@ $ go test -count=1 -v -tags=integration ./tests/integration/
     --- PASS: TestStoreAndAPI/теги_идут_в_порядке_rank (0.00s)
     --- PASS: TestStoreAndAPI/без_тегов_пустой_список_и_200 (0.00s)
     --- PASS: TestStoreAndAPI/пустой_q_даёт_400 (0.00s)
-    --- PASS: TestStoreAndAPI/спецсимволы_передаются_как_значение,_а_не_как_SQL (0.02s)
+    --- PASS: TestStoreAndAPI/спецсимволы_передаются_как_значение,_а_не_как_SQL (0.03s)
     --- PASS: TestStoreAndAPI/запросы_со_спецсимволами_находят_свои_теги (0.00s)
     --- PASS: TestStoreAndAPI/истекший_таймаут_возвращает_ошибку_контекста (0.00s)
 === RUN   TestParameterRoundTrip
 --- PASS: TestParameterRoundTrip (0.13s)
 === RUN   TestNormalizeParity
---- PASS: TestNormalizeParity (0.13s)
+--- PASS: TestNormalizeParity (0.14s)
 === RUN   TestNormalizeParityOnRealLogs
-    integration_test.go:582: проверено запросов: 11018
+    integration_test.go:598: проверено запросов: 11018
 --- PASS: TestNormalizeParityOnRealLogs (0.14s)
 PASS
-ok  	github.com/EWEEEL/search-tags/tests/integration	0.804s
+ok  	github.com/EWEEEL/search-tags/tests/integration	0.828s

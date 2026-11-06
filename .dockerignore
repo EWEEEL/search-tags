@@ -1,0 +1,9 @@
+.git
+.github
+.env
+data
+results
+sql
+scripts
+*.md
+docker-compose.yml

@@ -1,0 +1,61 @@
+name: search-tags
+
+services:
+  clickhouse:
+    image: clickhouse/clickhouse-server:26.8.36
+    environment:
+      CLICKHOUSE_DB: search
+      CLICKHOUSE_USER: app
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-clickhouse}
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
+    ports:
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:8123:8123"
+    volumes:
+      - clickhouse-data:/var/lib/clickhouse
+      - ./sql:/sql:ro
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    healthcheck:
+      test: ["CMD-SHELL", "clickhouse-client --user app --password \"$$CLICKHOUSE_PASSWORD\" --query 'SELECT 1'"]
+      interval: 3s
+      timeout: 5s
+      retries: 40
+
+  # Одноразовый контейнер: создаёт таблицы, загружает логи, строит теги и запускает проверки.
+  db-init:
+    image: clickhouse/clickhouse-server:26.8.36
+    entrypoint: ["/bin/bash", "/scripts/init-db.sh"]
+    environment:
+      CLICKHOUSE_HOST: clickhouse
+      CLICKHOUSE_USER: app
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-clickhouse}
+      CLICKHOUSE_DATABASE: search
+    volumes:
+      - ./sql:/sql:ro
+      - ./scripts:/scripts:ro
+      - ./data:/data:ro
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+
+  app:
+    build: .
+    environment:
+      PORT: "8080"
+      CLICKHOUSE_ADDR: clickhouse:9000
+      CLICKHOUSE_DATABASE: search
+      CLICKHOUSE_USER: app
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-clickhouse}
+      QUERY_TIMEOUT: ${QUERY_TIMEOUT:-3s}
+    ports:
+      - "${HTTP_PORT:-8080}:8080"
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+volumes:
+  clickhouse-data:

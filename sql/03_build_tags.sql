@@ -2,7 +2,8 @@
 
 -- 1. Нормализация: нижний регистр, повторные пробелы, пробелы по краям.
 --    lowerUTF8, а не lower: lower меняет только ASCII и оставил бы «ПЛАТЬЕ» как есть.
---    Логика совпадает с search.Normalize в Go, это проверяет интеграционный тест.
+--    Для кириллицы и латиницы результат совпадает с search.Normalize в Go, это проверяет
+--    интеграционный тест. Исключения описаны в docs/data_notes.md.
 CREATE OR REPLACE FUNCTION normalize_query AS (s) ->
     trimBoth(replaceRegexpAll(lowerUTF8(s), '\\s+', ' '));
 

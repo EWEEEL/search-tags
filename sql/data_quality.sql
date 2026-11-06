@@ -57,4 +57,5 @@ FROM
 )
 WHERE (first_query, second_query) IN (('платье', 'странный запрос'), ('кроссовки', 'кроссовки nike акция'))
 GROUP BY first_query, second_query
+ORDER BY events DESC
 FORMAT PrettyCompactMonoBlock;

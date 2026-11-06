@@ -16,8 +16,9 @@ type Tag struct {
 // и Go, и ClickHouse используют синтаксис RE2, где \s означает [\t\n\f\r ].
 var whitespace = regexp.MustCompile(`\s+`)
 
-// Normalize приводит запрос к тому же виду, что и sql/03_build_tags.sql:
-// нижний регистр, повторные пробелы схлопнуты, пробелы по краям убраны.
+// Normalize выполняет те же шаги, что и sql/03_build_tags.sql: нижний регистр,
+// повторные пробелы схлопнуты, пробелы по краям убраны. Для кириллицы и латиницы
+// результат совпадает с SQL, исключения описаны в docs/data_notes.md.
 func Normalize(query string) string {
 	query = strings.ToLower(query)
 	query = whitespace.ReplaceAllString(query, " ")

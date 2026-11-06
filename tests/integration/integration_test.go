@@ -121,6 +121,11 @@ func buildFixture() *fixture {
 		f.users(count, "топ", fmt.Sprintf("тег %02d", i+1))
 	}
 
+	// Больше 255 кандидатов: номер строки не должен переполниться при приведении к UInt8.
+	for i := range 300 {
+		f.users(5, "много кандидатов", fmt.Sprintf("кандидат %03d", i))
+	}
+
 	// Порядок определяется временем запроса, а не порядком вставки.
 	for range 5 {
 		f.nextID++
@@ -356,6 +361,19 @@ func TestBuildRules(t *testing.T) {
 		}
 		if !reflect.DeepEqual(got, want) {
 			t.Errorf("got %+v\nwant %+v", got, want)
+		}
+	})
+
+	t.Run("больше 255 кандидатов не ломают топ-10", func(t *testing.T) {
+		got := e.tags(t, "много кандидатов")
+		if len(got) != 10 {
+			t.Fatalf("строк %d, want 10: %+v", len(got), got)
+		}
+		for i, row := range got {
+			wantTag := fmt.Sprintf("кандидат %03d", i)
+			if row.Tag != wantTag || row.Rank != uint8(i+1) {
+				t.Errorf("строка %d = %+v, want tag %q rank %d", i, row, wantTag, i+1)
+			}
 		}
 	})
 

@@ -65,10 +65,12 @@ SELECT
     query,
     tag,
     users,
-    -- 7. Топ-10. tag в сортировке делает порядок стабильным при равном числе пользователей.
-    toUInt8(row_number() OVER (PARTITION BY query ORDER BY users DESC, tag ASC)) AS rank
+    toUInt8(row_number() OVER top) AS rank
 FROM pairs
-QUALIFY rank <= 10;
+-- 7. Топ-10. tag в сортировке делает порядок стабильным при равном числе пользователей.
+WINDOW top AS (PARTITION BY query ORDER BY users DESC, tag ASC)
+-- Фильтруем по исходному номеру: toUInt8 после 255 начинает считать заново.
+QUALIFY row_number() OVER top <= 10;
 
 EXCHANGE TABLES search_tags AND search_tags_new;
 DROP TABLE search_tags_new;

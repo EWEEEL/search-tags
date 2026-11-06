@@ -33,6 +33,7 @@ func NewServer(store TagStore, queryTimeout time.Duration, logger *slog.Logger) 
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/tags", s.handleAPITags)
+	mux.HandleFunc("GET /{$}", s.handlePage)
 	return s.logRequests(mux)
 }
 

@@ -62,6 +62,10 @@ func apiURL(q string) string {
 	return "/api/tags?q=" + url.QueryEscape(q)
 }
 
+func pageURL(q string) string {
+	return "/?q=" + url.QueryEscape(q)
+}
+
 func TestAPIEmptyQueryReturns400(t *testing.T) {
 	for _, target := range []string{"/api/tags", "/api/tags?q=", apiURL("   "), apiURL("\t\n")} {
 		t.Run(target, func(t *testing.T) {
@@ -158,6 +162,87 @@ func TestAPIRejectsOtherMethods(t *testing.T) {
 	server.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/api/tags?q=x", nil))
 	if rec.Code != http.StatusMethodNotAllowed {
 		t.Errorf("status = %d, want 405", rec.Code)
+	}
+}
+
+func TestPageWithoutQueryShowsOnlyForm(t *testing.T) {
+	store := newTestStore()
+	for _, target := range []string{"/", pageURL("   ")} {
+		status, body, _ := get(t, store, target)
+		if status != http.StatusOK {
+			t.Errorf("%s: status = %d, want 200", target, status)
+		}
+		if !strings.Contains(body, "Найти") || !strings.Contains(body, `name="q"`) {
+			t.Errorf("%s: нет формы поиска", target)
+		}
+		if strings.Contains(body, "пока нет тегов") {
+			t.Errorf("%s: сообщение показано без поиска", target)
+		}
+	}
+	if len(store.queries) != 0 {
+		t.Errorf("база вызвана с %v, хотя запроса нет", store.queries)
+	}
+}
+
+func TestPageShowsClickableTags(t *testing.T) {
+	status, body, _ := get(t, newTestStore(), pageURL("Платье "))
+	if status != http.StatusOK {
+		t.Fatalf("status = %d, want 200", status)
+	}
+	// Регистр в %XX не важен для URL, а html/template пишет его строчными буквами.
+	wantLink := `href="/?q=` + strings.ToLower(url.PathEscape("красное платье")) + `"`
+	if !strings.Contains(body, wantLink) {
+		t.Errorf("нет ссылки %s в:\n%s", wantLink, body)
+	}
+	first := strings.Index(body, ">красное платье<")
+	second := strings.Index(body, ">вечернее платье<")
+	if first < 0 || second < 0 || first > second {
+		t.Errorf("теги не показаны в порядке rank: %d, %d", first, second)
+	}
+	if !strings.Contains(body, `value="Платье "`) {
+		t.Errorf("в поле поиска нет введённого текста")
+	}
+}
+
+func TestPageNoTagsMessage(t *testing.T) {
+	_, body, _ := get(t, newTestStore(), pageURL("неизвестный запрос"))
+	if !strings.Contains(body, "Для этого запроса пока нет тегов") {
+		t.Errorf("нет сообщения об отсутствии тегов:\n%s", body)
+	}
+}
+
+func TestPageEscapesUserInput(t *testing.T) {
+	payload := `"><script>alert(1)</script>`
+	_, body, _ := get(t, newTestStore(), pageURL(payload))
+	if strings.Contains(body, "<script>alert") {
+		t.Errorf("пользовательский текст не экранирован:\n%s", body)
+	}
+	if !strings.Contains(body, "&lt;script&gt;alert(1)&lt;/script&gt;") {
+		t.Errorf("экранированного текста нет в поле поиска:\n%s", body)
+	}
+}
+
+func TestPageEscapesTags(t *testing.T) {
+	_, body, _ := get(t, newTestStore(), pageURL("xss"))
+	if strings.Contains(body, `<script>alert("tag")`) {
+		t.Errorf("тег не экранирован:\n%s", body)
+	}
+	if !strings.Contains(body, `href="/?q=a%26b%3dc%20d"`) {
+		t.Errorf("спецсимволы тега не закодированы в ссылке:\n%s", body)
+	}
+}
+
+func TestPageStoreError(t *testing.T) {
+	store := &fakeStore{err: errors.New("secret-host:9000 refused")}
+	status, body, _ := get(t, store, pageURL("платье"))
+	if status != http.StatusInternalServerError {
+		t.Errorf("status = %d, want 500", status)
+	}
+	if !strings.Contains(body, "Не удалось загрузить теги") || strings.Contains(body, "secret-host") {
+		t.Errorf("неверное сообщение об ошибке:\n%s", body)
+	}
+	if strings.Contains(body, "пока нет тегов") {
+		t.Errorf("ошибка базы показана как отсутствие тегов")
 	}
 }
 

@@ -1,0 +1,157 @@
+$ go test -count=1 -v ./...
+?   	github.com/EWEEEL/search-tags/cmd/server	[no test files]
+=== RUN   TestLoadDefaults
+--- PASS: TestLoadDefaults (0.00s)
+=== RUN   TestLoadFromEnvironment
+--- PASS: TestLoadFromEnvironment (0.00s)
+=== RUN   TestLoadRejectsInvalidValues
+=== RUN   TestLoadRejectsInvalidValues/нулевой_порт
+=== RUN   TestLoadRejectsInvalidValues/таймаут_не_время
+=== RUN   TestLoadRejectsInvalidValues/нулевой_таймаут
+=== RUN   TestLoadRejectsInvalidValues/порт_не_число
+=== RUN   TestLoadRejectsInvalidValues/порт_вне_диапазона
+--- PASS: TestLoadRejectsInvalidValues (0.00s)
+    --- PASS: TestLoadRejectsInvalidValues/нулевой_порт (0.00s)
+    --- PASS: TestLoadRejectsInvalidValues/таймаут_не_время (0.00s)
+    --- PASS: TestLoadRejectsInvalidValues/нулевой_таймаут (0.00s)
+    --- PASS: TestLoadRejectsInvalidValues/порт_не_число (0.00s)
+    --- PASS: TestLoadRejectsInvalidValues/порт_вне_диапазона (0.00s)
+PASS
+ok  	github.com/EWEEEL/search-tags/internal/config	0.010s
+=== RUN   TestNormalize
+=== RUN   TestNormalize/уже_нормализован
+=== RUN   TestNormalize/кириллица_в_верхнем_регистре
+=== RUN   TestNormalize/смешанный_регистр
+=== RUN   TestNormalize/буква_ё_в_верхнем_регистре
+=== RUN   TestNormalize/латиница
+=== RUN   TestNormalize/пробел_справа
+=== RUN   TestNormalize/пробел_слева
+=== RUN   TestNormalize/пробелы_с_обеих_сторон
+=== RUN   TestNormalize/повторные_пробелы_внутри
+=== RUN   TestNormalize/всё_сразу
+=== RUN   TestNormalize/табуляция_и_перевод_строки
+=== RUN   TestNormalize/ё_не_заменяется_на_е
+=== RUN   TestNormalize/цифры
+=== RUN   TestNormalize/пустая_строка
+=== RUN   TestNormalize/только_пробелы
+--- PASS: TestNormalize (0.00s)
+    --- PASS: TestNormalize/уже_нормализован (0.00s)
+    --- PASS: TestNormalize/кириллица_в_верхнем_регистре (0.00s)
+    --- PASS: TestNormalize/смешанный_регистр (0.00s)
+    --- PASS: TestNormalize/буква_ё_в_верхнем_регистре (0.00s)
+    --- PASS: TestNormalize/латиница (0.00s)
+    --- PASS: TestNormalize/пробел_справа (0.00s)
+    --- PASS: TestNormalize/пробел_слева (0.00s)
+    --- PASS: TestNormalize/пробелы_с_обеих_сторон (0.00s)
+    --- PASS: TestNormalize/повторные_пробелы_внутри (0.00s)
+    --- PASS: TestNormalize/всё_сразу (0.00s)
+    --- PASS: TestNormalize/табуляция_и_перевод_строки (0.00s)
+    --- PASS: TestNormalize/ё_не_заменяется_на_е (0.00s)
+    --- PASS: TestNormalize/цифры (0.00s)
+    --- PASS: TestNormalize/пустая_строка (0.00s)
+    --- PASS: TestNormalize/только_пробелы (0.00s)
+=== RUN   TestNormalizeIsIdempotent
+--- PASS: TestNormalizeIsIdempotent (0.00s)
+PASS
+ok  	github.com/EWEEEL/search-tags/internal/search	0.011s
+=== RUN   TestEscapeParameter
+--- PASS: TestEscapeParameter (0.00s)
+PASS
+ok  	github.com/EWEEEL/search-tags/internal/storage	0.012s
+=== RUN   TestAPIEmptyQueryReturns400
+=== RUN   TestAPIEmptyQueryReturns400//api/tags
+=== RUN   TestAPIEmptyQueryReturns400//api/tags?q=
+=== RUN   TestAPIEmptyQueryReturns400//api/tags?q=+++
+=== RUN   TestAPIEmptyQueryReturns400//api/tags?q=%09%0A
+--- PASS: TestAPIEmptyQueryReturns400 (0.02s)
+    --- PASS: TestAPIEmptyQueryReturns400//api/tags (0.02s)
+    --- PASS: TestAPIEmptyQueryReturns400//api/tags?q= (0.00s)
+    --- PASS: TestAPIEmptyQueryReturns400//api/tags?q=+++ (0.00s)
+    --- PASS: TestAPIEmptyQueryReturns400//api/tags?q=%09%0A (0.00s)
+=== RUN   TestAPIReturnsTagsInStoreOrder
+--- PASS: TestAPIReturnsTagsInStoreOrder (0.00s)
+=== RUN   TestAPINormalizesQuery
+=== RUN   TestAPINormalizesQuery/Платье_
+=== RUN   TestAPINormalizesQuery/_ПЛАТЬЕ
+=== RUN   TestAPINormalizesQuery/__плАтье__
+--- PASS: TestAPINormalizesQuery (0.00s)
+    --- PASS: TestAPINormalizesQuery/Платье_ (0.00s)
+    --- PASS: TestAPINormalizesQuery/_ПЛАТЬЕ (0.00s)
+    --- PASS: TestAPINormalizesQuery/__плАтье__ (0.00s)
+=== RUN   TestAPINoTagsReturnsEmptyList
+--- PASS: TestAPINoTagsReturnsEmptyList (0.00s)
+=== RUN   TestAPIStoreErrorDoesNotLeakDetails
+--- PASS: TestAPIStoreErrorDoesNotLeakDetails (0.00s)
+=== RUN   TestAPITimeoutReturns504
+--- PASS: TestAPITimeoutReturns504 (0.02s)
+=== RUN   TestAPIRejectsOtherMethods
+--- PASS: TestAPIRejectsOtherMethods (0.00s)
+=== RUN   TestPageWithoutQueryShowsOnlyForm
+--- PASS: TestPageWithoutQueryShowsOnlyForm (0.00s)
+=== RUN   TestPageShowsClickableTags
+--- PASS: TestPageShowsClickableTags (0.00s)
+=== RUN   TestPageNoTagsMessage
+--- PASS: TestPageNoTagsMessage (0.00s)
+=== RUN   TestPageEscapesUserInput
+--- PASS: TestPageEscapesUserInput (0.00s)
+=== RUN   TestPageEscapesTags
+--- PASS: TestPageEscapesTags (0.00s)
+=== RUN   TestPageStoreError
+--- PASS: TestPageStoreError (0.00s)
+=== RUN   TestUnknownPathReturns404
+--- PASS: TestUnknownPathReturns404 (0.00s)
+PASS
+ok  	github.com/EWEEEL/search-tags/internal/web	0.052s
+
+$ go test -count=1 -v -tags=integration ./tests/integration/
+=== RUN   TestBuildRules
+=== RUN   TestBuildRules/порог_в_5_пользователей
+=== RUN   TestBuildRules/ровно_30_минут_входят,_больше_нет
+=== RUN   TestBuildRules/только_соседние_запросы
+=== RUN   TestBuildRules/повтор_после_нормализации_не_пара
+=== RUN   TestBuildRules/считаются_пользователи,_а_не_события
+=== RUN   TestBuildRules/написания_сливаются
+=== RUN   TestBuildRules/топ-10_со_стабильным_порядком_при_равенстве
+=== RUN   TestBuildRules/порядок_по_времени,_а_не_по_вставке
+=== RUN   TestBuildRules/разные_пользователи_пару_не_образуют
+=== RUN   TestBuildRules/запрос_из_пробелов_пропускается
+=== RUN   TestBuildRules/повторная_сборка_даёт_тот_же_результат
+=== RUN   TestBuildRules/инварианты_результата
+--- PASS: TestBuildRules (0.21s)
+    --- PASS: TestBuildRules/порог_в_5_пользователей (0.00s)
+    --- PASS: TestBuildRules/ровно_30_минут_входят,_больше_нет (0.00s)
+    --- PASS: TestBuildRules/только_соседние_запросы (0.01s)
+    --- PASS: TestBuildRules/повтор_после_нормализации_не_пара (0.00s)
+    --- PASS: TestBuildRules/считаются_пользователи,_а_не_события (0.00s)
+    --- PASS: TestBuildRules/написания_сливаются (0.00s)
+    --- PASS: TestBuildRules/топ-10_со_стабильным_порядком_при_равенстве (0.00s)
+    --- PASS: TestBuildRules/порядок_по_времени,_а_не_по_вставке (0.00s)
+    --- PASS: TestBuildRules/разные_пользователи_пару_не_образуют (0.00s)
+    --- PASS: TestBuildRules/запрос_из_пробелов_пропускается (0.00s)
+    --- PASS: TestBuildRules/повторная_сборка_даёт_тот_же_результат (0.03s)
+    --- PASS: TestBuildRules/инварианты_результата (0.01s)
+=== RUN   TestStoreAndAPI
+=== RUN   TestStoreAndAPI/«Платье_»_и_«платье»_дают_один_ответ
+=== RUN   TestStoreAndAPI/теги_идут_в_порядке_rank
+=== RUN   TestStoreAndAPI/без_тегов_пустой_список_и_200
+=== RUN   TestStoreAndAPI/пустой_q_даёт_400
+=== RUN   TestStoreAndAPI/спецсимволы_передаются_как_значение,_а_не_как_SQL
+=== RUN   TestStoreAndAPI/запросы_со_спецсимволами_находят_свои_теги
+=== RUN   TestStoreAndAPI/истекший_таймаут_возвращает_ошибку_контекста
+--- PASS: TestStoreAndAPI (0.18s)
+    --- PASS: TestStoreAndAPI/«Платье_»_и_«платье»_дают_один_ответ (0.03s)
+    --- PASS: TestStoreAndAPI/теги_идут_в_порядке_rank (0.00s)
+    --- PASS: TestStoreAndAPI/без_тегов_пустой_список_и_200 (0.00s)
+    --- PASS: TestStoreAndAPI/пустой_q_даёт_400 (0.00s)
+    --- PASS: TestStoreAndAPI/спецсимволы_передаются_как_значение,_а_не_как_SQL (0.02s)
+    --- PASS: TestStoreAndAPI/запросы_со_спецсимволами_находят_свои_теги (0.00s)
+    --- PASS: TestStoreAndAPI/истекший_таймаут_возвращает_ошибку_контекста (0.00s)
+=== RUN   TestParameterRoundTrip
+--- PASS: TestParameterRoundTrip (0.13s)
+=== RUN   TestNormalizeParity
+--- PASS: TestNormalizeParity (0.13s)
+=== RUN   TestNormalizeParityOnRealLogs
+    integration_test.go:582: проверено запросов: 11018
+--- PASS: TestNormalizeParityOnRealLogs (0.14s)
+PASS
+ok  	github.com/EWEEEL/search-tags/tests/integration	0.804s

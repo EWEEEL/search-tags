@@ -31,7 +31,7 @@ func (s *Server) handlePage(w http.ResponseWriter, r *http.Request) {
 		data.Searched = true
 		tags, err := s.lookup(r.Context(), query)
 		if err != nil {
-			s.logger.Error("load tags", "error", err)
+			s.logLookupError(err)
 			data.Failed = true
 			status = errorStatus(err)
 		}

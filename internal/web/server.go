@@ -54,12 +54,28 @@ func (s *Server) lookup(ctx context.Context, query string) ([]search.Tag, error)
 	return tags, nil
 }
 
+// statusClientClosedRequest означает, что клиент ушёл, не дождавшись ответа (код из nginx).
+const statusClientClosedRequest = 499
+
 // errorStatus выбирает HTTP-статус для ошибки чтения тегов.
 func errorStatus(err error) int {
-	if errors.Is(err, context.DeadlineExceeded) {
+	switch {
+	case errors.Is(err, context.Canceled):
+		return statusClientClosedRequest
+	case errors.Is(err, context.DeadlineExceeded):
 		return http.StatusGatewayTimeout
+	default:
+		return http.StatusInternalServerError
 	}
-	return http.StatusInternalServerError
+}
+
+// logLookupError пишет ошибку чтения тегов. Уход клиента не считается ошибкой сервера.
+func (s *Server) logLookupError(err error) {
+	if errors.Is(err, context.Canceled) {
+		s.logger.Info("client disconnected", "error", err)
+		return
+	}
+	s.logger.Error("load tags", "error", err)
 }
 
 // statusRecorder запоминает статус ответа для лога.

@@ -1,6 +1,7 @@
 package web
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -152,6 +153,27 @@ func TestAPITimeoutReturns504(t *testing.T) {
 	status, _, _ := get(t, &fakeStore{block: true}, apiURL("платье"))
 	if status != http.StatusGatewayTimeout {
 		t.Errorf("status = %d, want 504", status)
+	}
+}
+
+func TestClientDisconnectIsNotServerError(t *testing.T) {
+	for _, target := range []string{apiURL("платье"), pageURL("платье")} {
+		t.Run(target, func(t *testing.T) {
+			var logs bytes.Buffer
+			server := NewServer(&fakeStore{block: true}, time.Minute, slog.New(slog.NewTextHandler(&logs, nil)))
+
+			ctx, cancel := context.WithCancel(context.Background())
+			cancel()
+			rec := httptest.NewRecorder()
+			server.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, target, nil).WithContext(ctx))
+
+			if rec.Code != statusClientClosedRequest {
+				t.Errorf("status = %d, want %d", rec.Code, statusClientClosedRequest)
+			}
+			if strings.Contains(logs.String(), "level=ERROR") {
+				t.Errorf("уход клиента записан как ошибка:\n%s", logs.String())
+			}
+		})
 	}
 }
 

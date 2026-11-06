@@ -22,7 +22,7 @@ func (s *Server) handleAPITags(w http.ResponseWriter, r *http.Request) {
 	tags, err := s.lookup(r.Context(), query)
 	if err != nil {
 		// Подробности только в логе: клиенту не нужны детали устройства базы.
-		s.logger.Error("load tags", "error", err)
+		s.logLookupError(err)
 		status := errorStatus(err)
 		s.writeJSON(w, status, errorResponse{Error: http.StatusText(status)})
 		return

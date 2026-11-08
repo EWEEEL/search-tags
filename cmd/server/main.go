@@ -4,6 +4,7 @@ package main
 import (
 	"context"
 	"errors"
+	"flag"
 	"fmt"
 	"log/slog"
 	"net"
@@ -19,11 +20,38 @@ import (
 )
 
 func main() {
+	// В distroless-образе нет curl, поэтому healthcheck в docker-compose вызывает сам бинарник.
+	healthcheck := flag.Bool("healthcheck", false, "проверить /readyz запущенного сервиса и выйти с кодом 0 или 1")
+	flag.Parse()
+	if *healthcheck {
+		os.Exit(checkReady())
+	}
+
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	if err := run(logger); err != nil {
 		logger.Error("service stopped", "error", err)
 		os.Exit(1)
 	}
+}
+
+// checkReady обращается к /readyz сервиса, запущенного в этом же контейнере.
+func checkReady() int {
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+	client := http.Client{Timeout: 3 * time.Second}
+	response, err := client.Get("http://" + net.JoinHostPort("127.0.0.1", port) + "/readyz")
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "healthcheck:", err)
+		return 1
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		fmt.Fprintln(os.Stderr, "healthcheck: status", response.StatusCode)
+		return 1
+	}
+	return 0
 }
 
 func run(logger *slog.Logger) error {

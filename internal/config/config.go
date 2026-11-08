@@ -30,7 +30,7 @@ func Load(getenv func(string) string) (Config, error) {
 		Port:               withDefault("PORT", "8080"),
 		ClickHouseAddr:     withDefault("CLICKHOUSE_ADDR", "localhost:9000"),
 		ClickHouseDatabase: withDefault("CLICKHOUSE_DATABASE", "search"),
-		ClickHouseUser:     withDefault("CLICKHOUSE_USER", "default"),
+		ClickHouseUser:     withDefault("CLICKHOUSE_USER", "app"), // как в docker-compose.yml
 		ClickHousePassword: getenv("CLICKHOUSE_PASSWORD"),
 	}
 

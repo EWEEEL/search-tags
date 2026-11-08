@@ -19,11 +19,14 @@ import (
 
 // fakeStore подменяет ClickHouse и запоминает, с каким запросом его вызвали.
 type fakeStore struct {
-	tags    map[string][]search.Tag
-	err     error
-	block   bool
-	queries []string
+	tags     map[string][]search.Tag
+	err      error
+	block    bool
+	readyErr error
+	queries  []string
 }
+
+func (f *fakeStore) Ready(context.Context) error { return f.readyErr }
 
 func (f *fakeStore) Tags(ctx context.Context, query string) ([]search.Tag, error) {
 	f.queries = append(f.queries, query)
@@ -272,5 +275,122 @@ func TestUnknownPathReturns404(t *testing.T) {
 	status, _, _ := get(t, newTestStore(), "/unknown")
 	if status != http.StatusNotFound {
 		t.Errorf("status = %d, want 404", status)
+	}
+}
+
+func TestHealthzAndReadyz(t *testing.T) {
+	status, body, header := get(t, newTestStore(), "/healthz")
+	if status != http.StatusOK || !strings.Contains(body, `"ok"`) {
+		t.Errorf("healthz: %d %s", status, body)
+	}
+	if header.Get("Cache-Control") != "no-store" {
+		t.Errorf("healthz кэшируется: %q", header.Get("Cache-Control"))
+	}
+
+	if status, body, _ := get(t, newTestStore(), "/readyz"); status != http.StatusOK || !strings.Contains(body, `"ready"`) {
+		t.Errorf("readyz при живой базе: %d %s", status, body)
+	}
+	down := &fakeStore{readyErr: errors.New("table search_tags does not exist yet")}
+	if status, body, _ := get(t, down, "/readyz"); status != http.StatusServiceUnavailable || strings.Contains(body, "search_tags") {
+		t.Errorf("readyz без базы: %d %s", status, body)
+	}
+	// Жив, но не готов: /healthz не зависит от базы.
+	if status, _, _ := get(t, down, "/healthz"); status != http.StatusOK {
+		t.Errorf("healthz без базы: %d", status)
+	}
+}
+
+func TestCacheHeaders(t *testing.T) {
+	tests := []struct {
+		name   string
+		store  *fakeStore
+		target string
+		want   string
+	}{
+		{"теги кэшируются", newTestStore(), apiURL("платье"), "public, max-age=300"},
+		{"пустой ответ тоже", newTestStore(), apiURL("неизвестный запрос"), "public, max-age=300"},
+		{"страница кэшируется", newTestStore(), pageURL("платье"), "public, max-age=300"},
+		{"400 не кэшируется", newTestStore(), apiURL(" "), "no-store"},
+		{"500 не кэшируется", &fakeStore{err: errors.New("down")}, apiURL("платье"), "no-store"},
+		{"таймаут не кэшируется", &fakeStore{block: true}, apiURL("платье"), "no-store"},
+		{"страница с ошибкой не кэшируется", &fakeStore{err: errors.New("down")}, pageURL("платье"), "no-store"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, _, header := get(t, tt.store, tt.target)
+			if got := header.Get("Cache-Control"); got != tt.want {
+				t.Errorf("Cache-Control = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func serveWithLogs(t *testing.T, store TagStore, req *http.Request) (*httptest.ResponseRecorder, []map[string]any) {
+	t.Helper()
+	var logs bytes.Buffer
+	server := NewServer(store, 20*time.Millisecond, slog.New(slog.NewJSONHandler(&logs, nil)))
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	var entries []map[string]any
+	for _, line := range strings.Split(strings.TrimSpace(logs.String()), "\n") {
+		var entry map[string]any
+		if err := json.Unmarshal([]byte(line), &entry); err != nil {
+			t.Fatalf("строка лога не JSON: %q", line)
+		}
+		entries = append(entries, entry)
+	}
+	return rec, entries
+}
+
+func TestRequestIDIsGeneratedAndLogged(t *testing.T) {
+	rec, logs := serveWithLogs(t, newTestStore(), httptest.NewRequest(http.MethodGet, apiURL("  Платье "), nil))
+	id := rec.Header().Get("X-Request-ID")
+	if !validRequestID.MatchString(id) {
+		t.Fatalf("X-Request-ID = %q", id)
+	}
+	last := logs[len(logs)-1]
+	if last["request_id"] != id || last["query"] != "платье" || last["tags"] != float64(2) || last["status"] != float64(200) {
+		t.Errorf("строка лога: %v", last)
+	}
+	if _, ok := last["duration_ms"].(float64); !ok {
+		t.Errorf("нет duration_ms в миллисекундах: %v", last)
+	}
+}
+
+func TestRequestIDFromClient(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, apiURL("платье"), nil)
+	req.Header.Set("X-Request-ID", "front-42.a_b")
+	rec, _ := serveWithLogs(t, newTestStore(), req)
+	if got := rec.Header().Get("X-Request-ID"); got != "front-42.a_b" {
+		t.Errorf("X-Request-ID = %q, want переданный клиентом", got)
+	}
+
+	// Чужой id с переводом строки мог бы подделать строки лога: заменяем его своим.
+	req = httptest.NewRequest(http.MethodGet, apiURL("платье"), nil)
+	req.Header.Set("X-Request-ID", "evil\nlevel=ERROR")
+	rec, _ = serveWithLogs(t, newTestStore(), req)
+	if got := rec.Header().Get("X-Request-ID"); strings.Contains(got, "evil") || !validRequestID.MatchString(got) {
+		t.Errorf("X-Request-ID = %q", got)
+	}
+}
+
+func TestLookupErrorIsLoggedWithRequestID(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, apiURL("платье"), nil)
+	req.Header.Set("X-Request-ID", "req-1")
+	_, logs := serveWithLogs(t, &fakeStore{err: errors.New("boom")}, req)
+	for _, entry := range logs {
+		if entry["level"] == "ERROR" && entry["request_id"] == "req-1" && entry["error"] == "boom" {
+			return
+		}
+	}
+	t.Errorf("ошибка не записана с request_id: %v", logs)
+}
+
+func TestLoggedQueryIsTruncated(t *testing.T) {
+	long := strings.Repeat("я", 300)
+	_, logs := serveWithLogs(t, newTestStore(), httptest.NewRequest(http.MethodGet, apiURL(long), nil))
+	query, _ := logs[len(logs)-1]["query"].(string)
+	if n := len([]rune(query)); n != maxLoggedQuery+1 || !strings.HasSuffix(query, "…") {
+		t.Errorf("в лог попало %d символов: %q", n, query)
 	}
 }

@@ -3,6 +3,7 @@ package storage
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -64,6 +65,22 @@ func Open(opts Options) (*ClickHouse, error) {
 func (c *ClickHouse) Ping(ctx context.Context) error {
 	if err := c.conn.Ping(ctx); err != nil {
 		return fmt.Errorf("ping clickhouse: %w", err)
+	}
+	return nil
+}
+
+// Ready проверяет, что ClickHouse доступен и таблица тегов уже создана: до первого прогона
+// db-init её нет, и сервис ответил бы 500 на любой поиск.
+func (c *ClickHouse) Ready(ctx context.Context) error {
+	if err := c.Ping(ctx); err != nil {
+		return err
+	}
+	var exists uint8
+	if err := c.conn.QueryRow(ctx, "EXISTS TABLE search_tags").Scan(&exists); err != nil {
+		return fmt.Errorf("check search_tags: %w", err)
+	}
+	if exists == 0 {
+		return errors.New("table search_tags does not exist yet")
 	}
 	return nil
 }

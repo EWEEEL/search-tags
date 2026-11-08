@@ -575,6 +575,24 @@ func TestStoreAndAPI(t *testing.T) {
 		}
 	})
 
+	t.Run("готовность: база доступна и таблица тегов есть", func(t *testing.T) {
+		if err := e.store.Ready(context.Background()); err != nil {
+			t.Errorf("Ready() = %v, want nil", err)
+		}
+		status, body := func() (int, string) {
+			response, err := http.Get(api.URL + "/readyz")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer response.Body.Close()
+			b, _ := io.ReadAll(response.Body)
+			return response.StatusCode, string(b)
+		}()
+		if status != http.StatusOK {
+			t.Errorf("/readyz: %d %s", status, body)
+		}
+	})
+
 	t.Run("истекший таймаут возвращает ошибку контекста", func(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Nanosecond)
 		defer cancel()
@@ -583,6 +601,18 @@ func TestStoreAndAPI(t *testing.T) {
 			t.Errorf("err = %v, want context.DeadlineExceeded", err)
 		}
 	})
+}
+
+// TestNotReadyWithoutTagsTable: до первой публикации таблицы тегов нет, и сервис должен
+// честно отвечать 503 на /readyz, а не считаться готовым.
+func TestNotReadyWithoutTagsTable(t *testing.T) {
+	e := setup(t)
+	if err := e.conn.Exec(context.Background(), "DROP TABLE search_tags"); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.store.Ready(context.Background()); err == nil {
+		t.Error("Ready() = nil без таблицы search_tags")
+	}
 }
 
 // TestParameterRoundTrip проверяет, что значение доходит до сервера без изменений.

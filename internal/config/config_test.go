@@ -14,7 +14,7 @@ func TestLoadDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.Port != "8080" || cfg.ClickHouseAddr != "localhost:9000" || cfg.QueryTimeout != 3*time.Second {
+	if cfg.Port != "8080" || cfg.ClickHouseAddr != "localhost:9000" || cfg.ClickHouseUser != "app" || cfg.QueryTimeout != 3*time.Second {
 		t.Errorf("unexpected defaults: %+v", cfg)
 	}
 }

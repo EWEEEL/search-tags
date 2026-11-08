@@ -188,6 +188,9 @@ func TestAPIRejectsOtherMethods(t *testing.T) {
 	if rec.Code != http.StatusMethodNotAllowed {
 		t.Errorf("status = %d, want 405", rec.Code)
 	}
+	if got := rec.Header().Get("Cache-Control"); got != "no-store" {
+		t.Errorf("405 кэшируется: Cache-Control = %q", got)
+	}
 }
 
 func TestPageWithoutQueryShowsOnlyForm(t *testing.T) {
@@ -314,6 +317,7 @@ func TestCacheHeaders(t *testing.T) {
 		{"500 не кэшируется", &fakeStore{err: errors.New("down")}, apiURL("платье"), "no-store"},
 		{"таймаут не кэшируется", &fakeStore{block: true}, apiURL("платье"), "no-store"},
 		{"страница с ошибкой не кэшируется", &fakeStore{err: errors.New("down")}, pageURL("платье"), "no-store"},
+		{"404 от mux не кэшируется", newTestStore(), "/unknown", "no-store"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

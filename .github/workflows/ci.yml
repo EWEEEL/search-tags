@@ -53,7 +53,12 @@ jobs:
         run: docker compose config -q
       - name: Сборка образа
         run: docker build -t search-tags:ci .
-      - name: Образ запускается и проверяет здоровье
-        # Без базы сервис падает на ping, а -healthcheck без сервиса возвращает 1: оба поведения ожидаемы.
+      - name: Бинарник в образе запускается
+        # Сервиса рядом нет, поэтому -healthcheck должен честно вернуть 1. Любой другой код
+        # (125/126/127 — образ не стартует, 0 — проверка ничего не проверяет) роняет шаг.
         run: |
-          docker run --rm search-tags:ci -healthcheck && exit 1 || echo "healthcheck без сервиса: код 1, как и должно быть"
+          set +e
+          docker run --rm search-tags:ci -healthcheck
+          code=$?
+          echo "код выхода: $code"
+          test "$code" -eq 1

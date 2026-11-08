@@ -187,6 +187,9 @@ func (s *Server) logRequests(next http.Handler) http.Handler {
 			id = newRequestID()
 		}
 		w.Header().Set("X-Request-ID", id)
+		// По умолчанию не кэшируем: так закрыты и ответы самого mux (404, 405).
+		// Успешные ответы обработчики переопределяют через setCacheHeaders.
+		w.Header().Set("Cache-Control", "no-store")
 		info := &requestInfo{id: id, tags: -1}
 
 		recorder := &statusRecorder{ResponseWriter: w, status: http.StatusOK}

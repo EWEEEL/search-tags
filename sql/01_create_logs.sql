@@ -2,7 +2,9 @@
 -- Текст запроса храним как есть: нормализация относится к расчёту, а исходник нужен для аудита.
 CREATE TABLE IF NOT EXISTS search_logs
 (
-    timestamp    DateTime64(3, 'UTC'),
+    -- Внутри пользователя время растёт, поэтому Delta превращает его в маленькие приращения:
+    -- колонка сжимается почти вдвое, вся таблица на 27% (замер в docs/data_notes.md).
+    timestamp    DateTime64(3, 'UTC') CODEC(Delta, ZSTD(1)),
     user_id      UInt64,
     search_query LowCardinality(String)
 )

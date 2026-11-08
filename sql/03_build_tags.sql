@@ -2,12 +2,17 @@
 
 -- 1. Нормализация: нижний регистр, повторные пробелы, пробелы по краям.
 --    lowerUTF8, а не lower: lower меняет только ASCII и оставил бы «ПЛАТЬЕ» как есть.
---    Для кириллицы и латиницы результат совпадает с search.Normalize в Go, это проверяет
---    интеграционный тест. Исключения описаны в docs/data_notes.md.
+--    Сервис ищет теги по normalize_query(q) в самом запросе, поэтому ключ всегда совпадает
+--    с тем, что здесь записано. search.Normalize в Go повторяет функцию символ в символ,
+--    это проверяют интеграционные тесты на всех кодовых точках Unicode.
 CREATE OR REPLACE FUNCTION normalize_query AS (s) ->
     trimBoth(replaceRegexpAll(lowerUTF8(s), '\\s+', ' '));
 
-CREATE TABLE IF NOT EXISTS search_tags
+-- Собираем в search_tags_new. Живую search_tags этот файл не трогает: 04_checks.sql проверяет
+-- новую сборку, и только потом 05_publish.sql подменяет таблицу одним EXCHANGE.
+-- Схема описана здесь целиком, поэтому её изменение доходит и до уже существующего тома.
+DROP TABLE IF EXISTS search_tags_new;
+CREATE TABLE search_tags_new
 (
     query String,
     tag   String,
@@ -17,10 +22,8 @@ CREATE TABLE IF NOT EXISTS search_tags
 ENGINE = MergeTree
 ORDER BY (query, rank);
 
--- Собираем во временной таблице и подменяем одним EXCHANGE,
--- чтобы сервис не увидел пустую или наполовину заполненную таблицу.
-DROP TABLE IF EXISTS search_tags_new;
-CREATE TABLE search_tags_new AS search_tags;
+-- При первом запуске подменять ещё нечего: создаём пустую таблицу той же схемы.
+CREATE TABLE IF NOT EXISTS search_tags AS search_tags_new;
 
 INSERT INTO search_tags_new (query, tag, users, rank)
 WITH
@@ -45,7 +48,8 @@ WITH
             timestamp                    AS second_ts,
             row_number() OVER w          AS position
         FROM normalized
-        WINDOW w AS (PARTITION BY user_id ORDER BY timestamp ASC
+        -- query во втором ключе: при одинаковом времени порядок соседей не зависит от слияния частей.
+        WINDOW w AS (PARTITION BY user_id ORDER BY timestamp ASC, query ASC
                      ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)
     ),
     pairs AS
@@ -72,6 +76,3 @@ FROM pairs
 WINDOW top AS (PARTITION BY query ORDER BY users DESC, tag ASC)
 -- Фильтруем по исходному номеру: toUInt8 после 255 начинает считать заново.
 QUALIFY row_number() OVER top <= 10;
-
-EXCHANGE TABLES search_tags AND search_tags_new;
-DROP TABLE search_tags_new;

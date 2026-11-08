@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"math/rand/v2"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -23,6 +24,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
@@ -617,6 +619,91 @@ func TestNormalizeParity(t *testing.T) {
 		if want := search.Normalize(input); got != want {
 			t.Errorf("%q: ClickHouse = %q, Go = %q", input, got, want)
 		}
+	}
+}
+
+// compareWithClickHouse загружает пары (вход, результат Go) в таблицу и считает в ClickHouse,
+// где normalize_query даёт другое. Возвращает число расхождений и первые примеры.
+func compareWithClickHouse(t *testing.T, e *env, inputs []string) (uint64, []string) {
+	t.Helper()
+	ctx := context.Background()
+	if err := e.conn.Exec(ctx, "CREATE OR REPLACE TABLE normalize_parity (input String, from_go String) ENGINE = Memory"); err != nil {
+		t.Fatal(err)
+	}
+	batch, err := e.conn.PrepareBatch(ctx, "INSERT INTO normalize_parity")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, input := range inputs {
+		if err := batch.Append(input, search.Normalize(input)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := batch.Send(); err != nil {
+		t.Fatal(err)
+	}
+
+	var mismatches uint64
+	if err := e.conn.QueryRow(ctx, "SELECT count() FROM normalize_parity WHERE normalize_query(input) != from_go").Scan(&mismatches); err != nil {
+		t.Fatal(err)
+	}
+	rows, err := e.conn.Query(ctx, "SELECT input, from_go, normalize_query(input) FROM normalize_parity WHERE normalize_query(input) != from_go LIMIT 10")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	var examples []string
+	for rows.Next() {
+		var input, fromGo, fromSQL string
+		if err := rows.Scan(&input, &fromGo, &fromSQL); err != nil {
+			t.Fatal(err)
+		}
+		examples = append(examples, fmt.Sprintf("%+q: Go %+q, ClickHouse %+q", input, fromGo, fromSQL))
+	}
+	return mismatches, examples
+}
+
+// TestNormalizeParityAllCodePoints сверяет Go и ClickHouse на каждой кодовой точке Unicode в трёх
+// контекстах: символ отдельно, после «ΑΣ» и между «Α» и «Σ». Два последних проверяют, как символ
+// влияет на правило конечной сигмы: считается ли он буквой с регистром или пропускается.
+func TestNormalizeParityAllCodePoints(t *testing.T) {
+	e := setup(t)
+	inputs := make([]string, 0, 3*(unicode.MaxRune+1))
+	for r := rune(0); r <= unicode.MaxRune; r++ {
+		if r >= 0xD800 && r <= 0xDFFF {
+			continue // суррогаты не кодируются в UTF-8
+		}
+		c := string(r)
+		inputs = append(inputs, c, "ΑΣ"+c, "Α"+c+"Σ")
+	}
+	mismatches, examples := compareWithClickHouse(t, e, inputs)
+	if mismatches > 0 {
+		t.Errorf("расхождений: %d из %d\n%s", mismatches, len(inputs), strings.Join(examples, "\n"))
+	}
+	t.Logf("проверено строк: %d", len(inputs))
+}
+
+// TestNormalizeParityRandom сверяет Go и ClickHouse на случайных строках из символов,
+// на которых нормализация чаще всего ошибается. seed фиксирован, поэтому прогон воспроизводим.
+func TestNormalizeParityRandom(t *testing.T) {
+	e := setup(t)
+	alphabet := []string{
+		"Σ", "σ", "ς", "Α", "β", "Ω", "ά", "́", "'", ".", ":", "·", "’", "-", "ʰ", "­",
+		"İ", "I", "i", "К", "к", "Ё", "ё", "A", "z", "5", " ", "  ", "\t", "\n", "\r", "\f", "\v",
+		" ", "\xff", "\xd0", "\xc0\xaf", "Ꮳ", "ᲀ", "ǅ", "ẞ", "K", "Ⅻ", "Ⓐ", "Ⴀ",
+	}
+	rng := rand.New(rand.NewPCG(2026, 11))
+	inputs := make([]string, 20000)
+	for i := range inputs {
+		var b strings.Builder
+		for range rng.IntN(12) {
+			b.WriteString(alphabet[rng.IntN(len(alphabet))])
+		}
+		inputs[i] = b.String()
+	}
+	mismatches, examples := compareWithClickHouse(t, e, inputs)
+	if mismatches > 0 {
+		t.Errorf("расхождений: %d из %d\n%s", mismatches, len(inputs), strings.Join(examples, "\n"))
 	}
 }
 

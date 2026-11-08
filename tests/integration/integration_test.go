@@ -231,7 +231,7 @@ func setup(t *testing.T) *env {
 		t.Fatal(err)
 	}
 
-	runSQLFile(t, conn, "03_build_tags.sql")
+	buildAndPublish(t, conn, opts)
 
 	store, err := storage.Open(opts)
 	if err != nil {
@@ -245,18 +245,53 @@ func setup(t *testing.T) *env {
 // runSQLFile выполняет файл из папки sql по одному выражению.
 func runSQLFile(t *testing.T, conn driver.Conn, name string) {
 	t.Helper()
+	if err := execSQLFile(context.Background(), conn, name); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func execSQLFile(ctx context.Context, conn driver.Conn, name string) error {
 	content, err := os.ReadFile(filepath.Join("..", "..", "sql", name))
 	if err != nil {
-		t.Fatal(err)
+		return err
 	}
 	for _, statement := range strings.Split(strings.ReplaceAll(string(content), "\r\n", "\n"), ";\n") {
 		if !hasSQL(statement) {
 			continue
 		}
-		if err := conn.Exec(context.Background(), statement); err != nil {
-			t.Fatalf("%s: %v\n%s", name, err, statement)
+		if err := conn.Exec(ctx, statement); err != nil {
+			return fmt.Errorf("%s: %w\n%s", name, err, statement)
 		}
 	}
+	return nil
+}
+
+// runChecks выполняет sql/04_checks.sql для таблицы table так же, как scripts/init-db.sh.
+// Нужно отдельное соединение с одним подключением в пуле: временная таблица check_results
+// живёт в сессии, а пул мог бы отправить следующее выражение в другое подключение.
+func runChecks(t *testing.T, opts storage.Options, table string) error {
+	t.Helper()
+	conn, err := clickhouse.Open(&clickhouse.Options{
+		Addr:         []string{opts.Addr},
+		Auth:         clickhouse.Auth{Database: opts.Database, Username: opts.Username, Password: opts.Password},
+		MaxOpenConns: 1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	ctx := clickhouse.Context(context.Background(), clickhouse.WithParameters(clickhouse.Parameters{"table": table}))
+	return execSQLFile(ctx, conn, "04_checks.sql")
+}
+
+// buildAndPublish повторяет шаги после загрузки логов: сборка, проверки новой сборки, публикация.
+func buildAndPublish(t *testing.T, conn driver.Conn, opts storage.Options) {
+	t.Helper()
+	runSQLFile(t, conn, "03_build_tags.sql")
+	if err := runChecks(t, opts, "search_tags_new"); err != nil {
+		t.Fatalf("проверки не прошли на корректной сборке: %v", err)
+	}
+	runSQLFile(t, conn, "05_publish.sql")
 }
 
 func hasSQL(statement string) bool {
@@ -393,28 +428,52 @@ func TestBuildRules(t *testing.T) {
 
 	t.Run("повторная сборка даёт тот же результат", func(t *testing.T) {
 		before := e.tags(t, "топ")
-		runSQLFile(t, e.conn, "03_build_tags.sql")
+		buildAndPublish(t, e.conn, e.opts)
 		if after := e.tags(t, "топ"); !reflect.DeepEqual(before, after) {
 			t.Errorf("before %+v, after %+v", before, after)
 		}
 	})
 
-	t.Run("инварианты результата", func(t *testing.T) {
-		checks := map[string]string{
-			"query = tag":     "SELECT count() FROM search_tags WHERE query = tag",
-			"users < 5":       "SELECT count() FROM search_tags WHERE users < 5",
-			"больше 10 тегов": "SELECT count() FROM (SELECT query FROM search_tags GROUP BY query HAVING count() > 10)",
-		}
-		for name, query := range checks {
-			var violations uint64
-			if err := e.conn.QueryRow(context.Background(), query).Scan(&violations); err != nil {
-				t.Fatal(err)
-			}
-			if violations != 0 {
-				t.Errorf("%s: нарушений %d", name, violations)
-			}
+	t.Run("опубликованная таблица проходит все SQL-проверки", func(t *testing.T) {
+		if err := runChecks(t, e.opts, "search_tags"); err != nil {
+			t.Fatal(err)
 		}
 	})
+}
+
+// TestChecksBlockBrokenBuild ломает новую сборку разными способами и проверяет, что 04_checks.sql
+// каждый раз её отклоняет, а опубликованная таблица остаётся прежней.
+func TestChecksBlockBrokenBuild(t *testing.T) {
+	e := setup(t)
+	ctx := context.Background()
+	published := e.tags(t, "топ")
+
+	breakages := []struct{ name, sql string }{
+		{"тег совпадает с запросом", "INSERT INTO search_tags_new VALUES ('куртка', 'куртка', 9, 1)"},
+		{"меньше 5 пользователей", "INSERT INTO search_tags_new VALUES ('куртка', 'пуховик', 4, 1)"},
+		{"больше 10 тегов", "INSERT INTO search_tags_new SELECT 'куртка', concat('тег ', toString(number)), 5, number + 1 FROM numbers(11)"},
+		{"ненормализованный запрос", "INSERT INTO search_tags_new VALUES ('Куртка ', 'пуховик', 9, 1)"},
+		{"пропуск в rank", "INSERT INTO search_tags_new VALUES ('куртка', 'пуховик', 9, 2)"},
+		{"users растёт вместе с rank", "INSERT INTO search_tags_new VALUES ('куртка', 'пуховик', 5, 1), ('куртка', 'парка', 9, 2)"},
+		{"тег бота", "INSERT INTO search_tags_new VALUES ('платье', 'странный запрос', 7, 2)"},
+		{"пустая сборка", "TRUNCATE TABLE search_tags_new"},
+		{"неполная сборка", "DELETE FROM search_tags_new WHERE query != 'платье'"},
+	}
+	for _, b := range breakages {
+		t.Run(b.name, func(t *testing.T) {
+			runSQLFile(t, e.conn, "03_build_tags.sql")
+			if err := e.conn.Exec(ctx, b.sql); err != nil {
+				t.Fatal(err)
+			}
+			err := runChecks(t, e.opts, "search_tags_new")
+			if err == nil || !strings.Contains(err.Error(), "SQL-проверки не пройдены") {
+				t.Fatalf("сломанная сборка прошла проверки: %v", err)
+			}
+			if got := e.tags(t, "топ"); !reflect.DeepEqual(got, published) {
+				t.Errorf("опубликованные теги изменились: %+v", got)
+			}
+		})
+	}
 }
 
 func TestStoreAndAPI(t *testing.T) {

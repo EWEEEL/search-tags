@@ -59,6 +59,13 @@ services:
       db-init:
         condition: service_completed_successfully
     restart: unless-stopped
+    healthcheck:
+      # В distroless нет curl: бинарник сам обращается к своему /readyz.
+      test: ["CMD", "/server", "-healthcheck"]
+      interval: 5s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
 
 volumes:
   clickhouse-data:

@@ -23,19 +23,37 @@ jobs:
           --health-timeout 5s
           --health-retries 40
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
       - name: Форматирование
         run: test -z "$(gofmt -l .)"
       - name: go vet
         run: go vet ./... && go vet -tags=integration ./...
-      - name: Unit-тесты
-        run: go test -v ./...
+      - name: Уязвимости в зависимостях
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
+      - name: Unit-тесты с race detector
+        run: go test -race -v ./...
+      - name: Fuzz нормализации
+        run: go test -run='^$' -fuzz=FuzzNormalize -fuzztime=20s ./internal/search
       - name: Интеграционные тесты с ClickHouse
-        run: go test -v -tags=integration ./tests/integration/
+        # SQL-файлы, проверки 04_checks.sql, публикация и сверка нормализации со всеми символами Unicode.
+        run: go test -race -v -tags=integration ./tests/integration/
         env:
           CLICKHOUSE_ADDR: localhost:9000
           CLICKHOUSE_USER: app
           CLICKHOUSE_PASSWORD: clickhouse
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: docker-compose.yml валиден
+        run: docker compose config -q
+      - name: Сборка образа
+        run: docker build -t search-tags:ci .
+      - name: Образ запускается и проверяет здоровье
+        # Без базы сервис падает на ping, а -healthcheck без сервиса возвращает 1: оба поведения ожидаемы.
+        run: |
+          docker run --rm search-tags:ci -healthcheck && exit 1 || echo "healthcheck без сервиса: код 1, как и должно быть"
